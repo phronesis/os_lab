@@ -30,6 +30,8 @@ network:
     ens34:
       dhcp4: false        # no IP (Neutron will use this interface)
       optional: true
+    eno1:
+      dhcp4: true
 EOF
 sudo netplan apply
 sudo rm -f /etc/netplan/50-cloud-init.yaml
@@ -62,13 +64,13 @@ echo "<---"
 
 echo "---> Preparing second disk for Cinder LVM volume groups"
 # Initialize the disk as a PV
-sudo pvcreate /dev/sdb
+sudo pvcreate /dev/sda
 
 # Verify PV creation (optional)
 sudo pvs
 
 # Create the first VG using the first partition
-sudo vgcreate cinder-volumes /dev/sdb
+sudo vgcreate cinder-volumes /dev/sda
 
 # Verify VG creation
 sudo vgs
