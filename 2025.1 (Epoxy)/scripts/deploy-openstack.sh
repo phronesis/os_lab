@@ -155,6 +155,8 @@ network:
     ens34:
       dhcp4: false        # no IP (Neutron will use this interface)
       optional: true
+    eno1:
+      dhcp4: true
 EOF
 sudo netplan apply
 echo "<---"
