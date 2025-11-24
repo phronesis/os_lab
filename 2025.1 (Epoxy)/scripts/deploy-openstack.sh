@@ -6,6 +6,16 @@
 # $ bash deploy-openstack.sh
 # Script takes 20-45 minutes to complete
 # Follow on screen instructions when script finishes
+#
+# NETWORK INTERFACE CONFIGURATION:
+# By default, this script auto-detects network interfaces on your system.
+# If auto-detection fails or you want to use specific interfaces, set these environment variables:
+#
+# $ export NETWORK_INTERFACE=eth0           # Your primary network interface
+# $ export NEUTRON_EXTERNAL_INTERFACE=eth1  # Interface for Neutron external network (no IP needed)
+# $ bash deploy-openstack.sh
+#
+# To see available interfaces, run: ip link show
 
 echo "---> Deploy OpenStack 2025.1 (Epoxy) All-in-One Lab using Kolla-Ansible in Docker containers"
 echo ""
@@ -47,6 +57,55 @@ echo "---> Set password for 'admin' user"
 sudo yq -i -y '.keystone_admin_password = "openstack"' /etc/kolla/passwords.yml
 echo "<---"
 
+echo "---> Auto-detecting network interfaces"
+# Allow user to override network interfaces via environment variables
+# If not set, try to auto-detect
+if [ -z "$NETWORK_INTERFACE" ]; then
+    # Try to find the primary network interface with IP 10.0.0.11
+    NETWORK_INTERFACE=$(ip -4 addr show 2>/dev/null | grep "10.0.0.11" | awk '{print $NF}' | head -n1)
+
+    # If not found, try to find any active interface (excluding loopback)
+    if [ -z "$NETWORK_INTERFACE" ]; then
+        NETWORK_INTERFACE=$(ip -4 route show default 2>/dev/null | awk '{print $5}' | head -n1)
+    fi
+
+    # Fallback to common interface names if still not found
+    if [ -z "$NETWORK_INTERFACE" ]; then
+        for iface in ens33 eth0 enp0s3 enp0s8; do
+            if ip link show "$iface" &>/dev/null; then
+                NETWORK_INTERFACE="$iface"
+                break
+            fi
+        done
+    fi
+fi
+
+if [ -z "$NEUTRON_EXTERNAL_INTERFACE" ]; then
+    # Try to find the second network interface for Neutron external network
+    NEUTRON_EXTERNAL_INTERFACE=$(ip link show 2>/dev/null | grep -E '^[0-9]+: ' | grep -v "lo:" | awk -F': ' '{print $2}' | grep -v "$NETWORK_INTERFACE" | head -n1)
+
+    # Fallback to common names
+    if [ -z "$NEUTRON_EXTERNAL_INTERFACE" ]; then
+        for iface in ens34 eth1 enp0s9; do
+            if ip link show "$iface" &>/dev/null; then
+                NEUTRON_EXTERNAL_INTERFACE="$iface"
+                break
+            fi
+        done
+    fi
+fi
+
+# Set defaults if still empty
+NETWORK_INTERFACE="${NETWORK_INTERFACE:-ens33}"
+NEUTRON_EXTERNAL_INTERFACE="${NEUTRON_EXTERNAL_INTERFACE:-ens34}"
+
+echo "Network Interface: $NETWORK_INTERFACE"
+echo "Neutron External Interface: $NEUTRON_EXTERNAL_INTERFACE"
+echo "NOTE: If these are incorrect, cancel (Ctrl+C) and set NETWORK_INTERFACE and NEUTRON_EXTERNAL_INTERFACE environment variables before running this script."
+echo "Continuing in 5 seconds..."
+sleep 5
+echo "<---"
+
 echo "---> Configuring Kolla-Ansible (globals.yml)"
 cat << EOF | tee -a /etc/kolla/globals.yml
 # ---------------------------------------------------
@@ -54,10 +113,10 @@ cat << EOF | tee -a /etc/kolla/globals.yml
 # OpenStack Epoxy All-in-One Lab deployment configuration
 #
 # Configure Network Interfaces
-network_interface: "ens33"
-api_interface: "ens33"
-neutron_external_interface: "ens34"
-dns_interface: "ens33"
+network_interface: "$NETWORK_INTERFACE"
+api_interface: "$NETWORK_INTERFACE"
+neutron_external_interface: "$NEUTRON_EXTERNAL_INTERFACE"
+dns_interface: "$NETWORK_INTERFACE"
 kolla_internal_vip_address: "10.0.0.11"
 kolla_external_vip_address: "10.0.0.11"
 
@@ -138,26 +197,37 @@ zone_id = $ZONE_ID
 zone_id = $ZONE_ID
 EOF
 kolla-ansible reconfigure -i all-in-one --tags designate,neutron,nova
+
+echo "---> Updating netplan configuration with detected interfaces"
+# Get all interfaces except loopback and the ones we're already configuring
+OTHER_INTERFACES=$(ip -o link show | awk -F': ' '{print $2}' | grep -v "lo" | grep -v "$NETWORK_INTERFACE" | grep -v "$NEUTRON_EXTERNAL_INTERFACE")
+
 cat << EOF | sudo tee /etc/netplan/01-netcfg.yaml
 network:
   version: 2
   renderer: networkd
   ethernets:
-    ens32:
-      dhcp4: true
-    ens33:
+    $NETWORK_INTERFACE:
       dhcp4: false
       addresses: [ 10.0.0.11/24 ]
-      routes: []          # no default route via enp0s8
+      routes: []          # no default route
       nameservers:
         addresses: [ 10.0.0.11 ]
         search: [ example.test ]
-    ens34:
+    $NEUTRON_EXTERNAL_INTERFACE:
       dhcp4: false        # no IP (Neutron will use this interface)
       optional: true
-    eno1:
-      dhcp4: true
 EOF
+
+# Add any other interfaces with DHCP
+for iface in $OTHER_INTERFACES; do
+    cat << EOF | sudo tee -a /etc/netplan/01-netcfg.yaml
+    $iface:
+      dhcp4: true
+      optional: true
+EOF
+done
+
 sudo netplan apply
 echo "<---"
 
