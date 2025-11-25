@@ -133,8 +133,9 @@ enable_proxysql: "no"
 enable_rabbitmq_cluster: "no"
 
 # Database configuration for all-in-one without HAProxy
-# Set database_address to VIP since services need to connect directly to MariaDB
-database_address: "10.0.0.11"
+# Use localhost for direct MariaDB connections to avoid hostname resolution issues
+# This prevents authentication errors when connecting as 'root'@'hostname'
+database_address: "127.0.0.1"
 
 # Enable Core OpenStack Services
 enable_keystone: "yes"
