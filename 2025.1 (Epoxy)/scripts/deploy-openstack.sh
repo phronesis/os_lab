@@ -57,6 +57,11 @@ cat << 'EOF' | sudo tee /etc/kolla/config/mariadb/galera.cnf
 # This ensures connections are authenticated by IP address instead of hostname
 # Required for all-in-one deployments where WSREP checks connect via IP
 skip-name-resolve
+
+# Bind to all interfaces (0.0.0.0) instead of specific IP
+# This allows connections from both 127.0.0.1 (services) and 10.0.0.11 (checks)
+# Required for all-in-one deployments without HAProxy
+bind-address = 0.0.0.0
 EOF
 sudo chown -R $USER:$USER /etc/kolla/config
 echo "<---"
