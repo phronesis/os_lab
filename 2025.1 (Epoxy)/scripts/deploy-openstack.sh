@@ -133,9 +133,13 @@ enable_proxysql: "no"
 enable_rabbitmq_cluster: "no"
 
 # Database configuration for all-in-one without HAProxy
-# Use localhost for direct MariaDB connections to avoid hostname resolution issues
-# This prevents authentication errors when connecting as 'root'@'hostname'
-database_address: "127.0.0.1"
+# Set database_address to VIP for service connectivity
+database_address: "10.0.0.11"
+
+# Disable hostname resolution in MariaDB to prevent 'root'@'hostname' authentication errors
+# This ensures connections are authenticated as 'root'@'IP' which matches 'root'@'localhost' grants
+mariadb_server_extra_opts:
+  skip-name-resolve: ""
 
 # Enable Core OpenStack Services
 enable_keystone: "yes"
