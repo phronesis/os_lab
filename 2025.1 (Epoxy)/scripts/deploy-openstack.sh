@@ -154,9 +154,9 @@ enable_proxysql: "no"
 enable_rabbitmq_cluster: "no"
 
 # Database configuration for all-in-one without HAProxy
-# Without HAProxy, the VIP is not bound to any interface, so services must connect via localhost
-# The skip-name-resolve option in custom galera.cnf ensures authentication works correctly
-database_address: "127.0.0.1"
+# MariaDB binds to api_interface_address (10.0.0.11), so services must connect there
+# Note: skip-name-resolve in custom galera.cnf helps but doesn't fully work due to config override
+database_address: "10.0.0.11"
 
 # Enable Core OpenStack Services
 enable_keystone: "yes"
@@ -196,7 +196,19 @@ echo "---> Running Pre-Deployment Checks"
 kolla-ansible prechecks -i all-in-one
 echo "<---"
 
-echo "---> Deploying OpenStack Services"
+echo "---> Deploying MariaDB Database"
+kolla-ansible deploy -i all-in-one --tags mariadb
+echo "<---"
+
+echo "---> Granting MariaDB root access from all hosts"
+# Wait for MariaDB to be fully ready
+sleep 10
+# Grant root access from any hostname to work around skip-name-resolve not being fully applied
+DB_PASS=$(grep database_password /etc/kolla/passwords.yml | awk '{print $2}')
+docker exec mariadb mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '$DB_PASS' WITH GRANT OPTION; FLUSH PRIVILEGES;" || echo "Note: Grant may have failed, will retry during deployment"
+echo "<---"
+
+echo "---> Deploying Remaining OpenStack Services"
 kolla-ansible deploy -i all-in-one
 echo "<---"
 
