@@ -63,26 +63,11 @@ skip-name-resolve
 # Required for all-in-one deployments without HAProxy
 bind-address = 0.0.0.0
 EOF
-
-# Create init script to grant root access from all hosts on first startup
-cat << 'INITEOF' | sudo tee /etc/kolla/config/mariadb/init-grants.sql
--- Grant root access from any hostname
--- This runs on MariaDB initialization before WSREP sync checks
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'PLACEHOLDER_PASSWORD' WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY 'PLACEHOLDER_PASSWORD' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-INITEOF
-
 sudo chown -R $USER:$USER /etc/kolla/config
 echo "<---"
 
 echo "---> Generating passwords for OpenStack services and users"
 kolla-genpwd
-echo "<---"
-
-echo "---> Updating MariaDB init script with actual password"
-DB_PASS=$(grep database_password /etc/kolla/passwords.yml | awk '{print $2}')
-sudo sed -i "s/PLACEHOLDER_PASSWORD/$DB_PASS/g" /etc/kolla/config/mariadb/init-grants.sql
 echo "<---"
 
 echo "---> Set password for 'admin' user"
