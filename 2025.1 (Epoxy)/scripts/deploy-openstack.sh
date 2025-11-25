@@ -179,30 +179,6 @@ enable_horizon_designate: "yes"
 EOF
 echo "<---"
 
-echo "---> Creating Cinder LVM volume group"
-# Check if cinder-volumes volume group already exists
-if ! sudo vgs cinder-volumes &>/dev/null; then
-    echo "Creating cinder-volumes VG using loopback device..."
-    # Create 100GB sparse file for Cinder block storage
-    sudo dd if=/dev/zero of=/var/lib/cinder_data.img bs=1 count=0 seek=100G
-
-    # Setup loopback device
-    LOOP_DEV=$(sudo losetup -f)
-    sudo losetup $LOOP_DEV /var/lib/cinder_data.img
-
-    # Create LVM physical volume and volume group
-    sudo pvcreate $LOOP_DEV
-    sudo vgcreate cinder-volumes $LOOP_DEV
-
-    # Make loopback device persistent across reboots
-    echo "$LOOP_DEV /var/lib/cinder_data.img" | sudo tee -a /etc/loopback_devices
-
-    echo "Cinder volume group created successfully"
-else
-    echo "Cinder volume group already exists, skipping creation"
-fi
-echo "<---"
-
 echo "---> Bootstraping the Server"
 kolla-ansible bootstrap-servers -i all-in-one
 echo "<---"
