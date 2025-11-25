@@ -145,8 +145,9 @@ enable_proxysql: "no"
 enable_rabbitmq_cluster: "no"
 
 # Database configuration for all-in-one without HAProxy
-# Set database_address to VIP for service connectivity
-database_address: "10.0.0.11"
+# Without HAProxy, the VIP is not bound to any interface, so services must connect via localhost
+# The skip-name-resolve option in custom galera.cnf ensures authentication works correctly
+database_address: "127.0.0.1"
 
 # Enable Core OpenStack Services
 enable_keystone: "yes"
