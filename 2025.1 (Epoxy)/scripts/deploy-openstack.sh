@@ -49,6 +49,18 @@ cp -r  ~/openstack-venv/share/kolla-ansible/etc_examples/kolla/* /etc/kolla/
 cp  ~/openstack-venv/share/kolla-ansible/ansible/inventory/all-in-one .
 echo "<---"
 
+echo "---> Creating custom MariaDB configuration"
+sudo mkdir -p /etc/kolla/config/mariadb
+cat << 'EOF' | sudo tee /etc/kolla/config/mariadb/galera.cnf
+[mysqld]
+# Disable hostname resolution to prevent 'root'@'hostname' authentication errors
+# This ensures connections are authenticated by IP address instead of hostname
+# Required for all-in-one deployments where WSREP checks connect via IP
+skip-name-resolve
+EOF
+sudo chown -R $USER:$USER /etc/kolla/config
+echo "<---"
+
 echo "---> Generating passwords for OpenStack services and users"
 kolla-genpwd
 echo "<---"
@@ -135,11 +147,6 @@ enable_rabbitmq_cluster: "no"
 # Database configuration for all-in-one without HAProxy
 # Set database_address to VIP for service connectivity
 database_address: "10.0.0.11"
-
-# Disable hostname resolution in MariaDB to prevent 'root'@'hostname' authentication errors
-# This ensures connections are authenticated as 'root'@'IP' which matches 'root'@'localhost' grants
-mariadb_server_extra_opts:
-  skip-name-resolve: ""
 
 # Enable Core OpenStack Services
 enable_keystone: "yes"
