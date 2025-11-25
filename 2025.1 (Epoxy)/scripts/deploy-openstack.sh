@@ -129,6 +129,10 @@ network_interface: "$NETWORK_INTERFACE"
 api_interface: "$NETWORK_INTERFACE"
 neutron_external_interface: "$NEUTRON_EXTERNAL_INTERFACE"
 dns_interface: "$NETWORK_INTERFACE"
+
+# VIP addresses for all-in-one deployment (must match the IP configured on network_interface)
+# In all-in-one without HAProxy, the "VIP" is actually the real interface IP (10.0.0.11)
+# prep-linux.sh already configured this IP on the network interface
 kolla_internal_vip_address: "10.0.0.11"
 kolla_external_vip_address: "10.0.0.11"
 
@@ -214,38 +218,6 @@ zone_id = $ZONE_ID
 zone_id = $ZONE_ID
 EOF
 kolla-ansible reconfigure -i all-in-one --tags designate,neutron,nova
-
-echo "---> Updating netplan configuration with detected interfaces"
-# Get all interfaces except loopback and the ones we're already configuring
-OTHER_INTERFACES=$(ip -o link show | awk -F': ' '{print $2}' | grep -v "lo" | grep -v "$NETWORK_INTERFACE" | grep -v "$NEUTRON_EXTERNAL_INTERFACE")
-
-cat << EOF | sudo tee /etc/netplan/01-netcfg.yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    $NETWORK_INTERFACE:
-      dhcp4: false
-      addresses: [ 10.0.0.11/24 ]
-      routes: []          # no default route
-      nameservers:
-        addresses: [ 10.0.0.11 ]
-        search: [ example.test ]
-    $NEUTRON_EXTERNAL_INTERFACE:
-      dhcp4: false        # no IP (Neutron will use this interface)
-      optional: true
-EOF
-
-# Add any other interfaces with DHCP
-for iface in $OTHER_INTERFACES; do
-    cat << EOF | sudo tee -a /etc/netplan/01-netcfg.yaml
-    $iface:
-      dhcp4: true
-      optional: true
-EOF
-done
-
-sudo netplan apply
 echo "<---"
 
 cat << EOF
@@ -262,6 +234,11 @@ grep OS_PASSWORD /etc/kolla/admin-openrc.sh
 Admin credentials for OpenStack CLI client are set by running:
 
 source /etc/kolla/admin-openrc.sh
+
+OPTIONAL: To use Designate for local DNS resolution, update /etc/netplan/01-netcfg.yaml
+to change nameservers from [ 8.8.8.8, 8.8.4.4 ] to [ 10.0.0.11 ], then run:
+
+sudo netplan apply
 
 (Optionally shutdown the system now and take the VM snapshot in VMware Workstation Pro, restart the VM.)
 
