@@ -158,6 +158,11 @@ enable_rabbitmq_cluster: "no"
 # Note: skip-name-resolve in custom galera.cnf helps but doesn't fully work due to config override
 database_address: "10.0.0.11"
 
+# Skip MariaDB WSREP sync check for single-node all-in-one deployments
+# The check requires authentication which fails due to hostname resolution issues
+# In single-node deployments, there's nothing to sync anyway
+mariadb_enable_wsrep_check: "no"
+
 # Enable Core OpenStack Services
 enable_keystone: "yes"
 enable_glance: "yes"
